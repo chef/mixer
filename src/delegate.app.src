@@ -1,0 +1,9 @@
+{application, delegate,
+ [
+  {description, "Delegates function implementation to other modules"},
+  {vsn, "0.1"},
+  {registered, []},
+  {applications, [kernel,
+                  stdlib]},
+  {env, []}
+ ]}.
