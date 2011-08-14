@@ -37,7 +37,7 @@ From the Department of Egregious Hacks, a version of `bar.erl` which mixes in th
     -module(bar).
     -include_lib("mixin/include/mixin.hrl").
     -mixin([lists]).
-
+---
     1> bar:module_info(exports).
     [{member,2},
     {reverse,2},
