@@ -20,7 +20,7 @@
 %% WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 %% OTHER DEALINGS IN THE SOFTWARE.
--module(delegate).
+-module(mixin).
 
 -define(PARAMS, [{0, ""},
                  {1, "A"},
@@ -56,11 +56,11 @@ finalize(Delegates, NewEOF, Forms) ->
 
 insert_exports(_Delegates, [], _Filter, Accum) ->
     lists:reverse(Accum);
-insert_exports(Delegates, [{attribute, LineNo, delegates, _}|T], false, Accum) ->
+insert_exports(Delegates, [{attribute, LineNo, mixin, _}|T], false, Accum) ->
     Attr = {attribute, LineNo, export, [{Name, Arity} || {_Mod, Name, Arity} <-
                                                              lists:flatten(Delegates)]},
     insert_exports(Delegates, T, true, [Attr|Accum]);
-insert_exports(Delegates, [{attribute, _, delegates, _}|T], true, Accum) ->
+insert_exports(Delegates, [{attribute, _, mixin, _}|T], true, Accum) ->
     insert_exports(Delegates, T, true, Accum);
 insert_exports(Delegates, [H|T], Filter, Accum) ->
     insert_exports(Delegates, T, Filter, [H|Accum]).
@@ -71,7 +71,7 @@ strip_eof(Forms) ->
 
 parse_and_expand_delegates([], Accum) ->
     lists:reverse(Accum);
-parse_and_expand_delegates([{attribute, _, delegates, Delegates0}|T], Accum) ->
+parse_and_expand_delegates([{attribute, _, mixin, Delegates0}|T], Accum) ->
     Delegates = [expand_delegate(Delegate) || Delegate <- Delegates0],
     parse_and_expand_delegates(T, Accum ++ Delegates);
 parse_and_expand_delegates([_|T], Accum) ->

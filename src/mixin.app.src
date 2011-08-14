@@ -1,6 +1,6 @@
-{application, delegate,
+{application, mixin,
  [
-  {description, "Delegates function implementation to other modules"},
+  {description, "Mixin public functions from external modules"},
   {vsn, "0.1"},
   {registered, []},
   {applications, [kernel,

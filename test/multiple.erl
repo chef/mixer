@@ -1,5 +1,5 @@
 -module(multiple).
 
--include("delegate.hrl").
+-include("mixin.hrl").
 
--delegates([{foo, [doit/0]}, bar]).
+-mixin([{foo, [doit/0]}, bar]).
