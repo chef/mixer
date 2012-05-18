@@ -22,25 +22,23 @@
 %% OTHER DEALINGS IN THE SOFTWARE.
 -module(mixin).
 
--define(PARAMS, [{0, ""},
-                 {1, "A"},
-                 {2, "A,B"},
-                 {3, "A,B,C"},
-                 {4, "A,B,C,D"},
-                 {5, "A,B,C,D,E"}]).
-
 -export([parse_transform/2]).
+
+-record(mixin, {line,
+                mod,
+                fname,
+                arity}).
 
 parse_transform(Forms, _Options) ->
     set_file_name(Forms),
     {EOF, Forms1} = strip_eof(Forms),
-    case parse_and_expand_delegates(Forms1, []) of
+    case parse_and_expand_mixins(Forms1, []) of
         [] ->
             Forms;
-        Delegates ->
-            insure_no_dupes(Delegates),
-            {EOF1, Forms2} = insert_stubs(Delegates, EOF, Forms1),
-            finalize(Delegates, EOF1, Forms2)
+        Mixins ->
+            no_dupes(Mixins),
+            {EOF1, Forms2} = insert_stubs(Mixins, EOF, Forms1),
+            finalize(Mixins, EOF1, Forms2)
     end.
 
 
@@ -51,66 +49,78 @@ set_file_name([{attribute, _, file, {FileName, _}}|_]) ->
 get_file_name() ->
     erlang:get(wm_delegate_file).
 
-finalize(Delegates, NewEOF, Forms) ->
-    insert_exports(Delegates, Forms, false, []) ++ [{eof, NewEOF}].
+finalize(Mixins, NewEOF, Forms) ->
+    insert_exports(Mixins, Forms, []) ++ [{eof, NewEOF}].
 
-insert_exports(_Delegates, [], _Filter, Accum) ->
-    lists:reverse(Accum);
-insert_exports(Delegates, [{attribute, LineNo, mixin, _}|T], false, Accum) ->
-    Attr = {attribute, LineNo, export, [{Name, Arity} || {_Mod, Name, Arity} <-
-                                                             lists:flatten(Delegates)]},
-    insert_exports(Delegates, T, true, [Attr|Accum]);
-insert_exports(Delegates, [{attribute, _, mixin, _}|T], true, Accum) ->
-    insert_exports(Delegates, T, true, Accum);
-insert_exports(Delegates, [H|T], Filter, Accum) ->
-    insert_exports(Delegates, T, Filter, [H|Accum]).
+insert_exports([], Forms, Accum) ->
+    Accum ++ Forms;
+insert_exports([#mixin{line=Line}|_]=Mixins, [{attribute, Line, mixin, _}|FT], Accum) ->
+    {Exports, Mixins1} = make_export_statement(Line, Mixins),
+    insert_exports(Mixins1, FT, Accum ++ Exports);
+insert_exports(Mixins, [H|T], Accum) ->
+    insert_exports(Mixins, T, Accum ++ [H]).
+
+%% insert_exports(_Mixins, [], _Filter, Accum) ->
+%%     lists:reverse(Accum).
+%% insert_exports(Mixins, [{attribute, LineNo, mixin, _}|T], false, Accum) ->
+%%     Attr = {attribute, LineNo, export, [{Name, Arity} || {_Mod, Name, Arity} <-
+%%                                                              lists:flatten(Mixins)]},
+%%     insert_exports(Mixins, T, true, [Attr|Accum]);
+%% insert_exports(Mixins, [{attribute, _, mixin, _}|T], true, Accum) ->
+%%     insert_exports(Mixins, T, true, Accum);
+%% insert_exports(Mixins, [H|T], Filter, Accum) ->
+%%     insert_exports(Mixins, T, Filter, [H|Accum]).
 
 strip_eof(Forms) ->
     {eof, EOF} = hd(lists:reverse(Forms)),
     {EOF, lists:delete({eof, EOF}, Forms)}.
 
-parse_and_expand_delegates([], Accum) ->
-    lists:reverse(Accum);
-parse_and_expand_delegates([{attribute, _, mixin, Delegates0}|T], Accum) ->
-    Delegates = [expand_delegate(Delegate) || Delegate <- Delegates0],
-    parse_and_expand_delegates(T, Accum ++ Delegates);
-parse_and_expand_delegates([_|T], Accum) ->
-    parse_and_expand_delegates(T, Accum).
+parse_and_expand_mixins([], Accum) ->
+    lists:keysort(2, Accum);
+parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}}}|T], Accum) ->
+    parse_and_expand_mixins(T, [#mixin{line=Line, mod=Name, fname=Fun, arity=Arity}|Accum]);
+parse_and_expand_mixins([{attribute, Line, mixin, Mixins0}|T], Accum) when is_list(Mixins0) ->
+    Mixins = [expand_mixin(Line, Mixin) || Mixin <- Mixins0],
+    parse_and_expand_mixins(T, lists:flatten([Accum, Mixins]));
+parse_and_expand_mixins([_|T], Accum) ->
+    parse_and_expand_mixins(T, Accum).
 
-expand_delegate(Name) when is_atom(Name) ->
+expand_mixin(Line, Name) when is_atom(Name) ->
     case catch Name:module_info(exports) of
         {'EXIT', _} ->
-            io:format("~s: Unable to resolve imported module ~p~n", [get_file_name(), Name]),
+            io:format("~s:~p Unable to resolve imported module ~p~n", [get_file_name(), Line, Name]),
             exit({error, undef_module});
         Exports ->
-            [{Name, Fun, Arity} || {Fun, Arity} <- Exports, Fun /= module_info]
+            [#mixin{line=Line, mod=Name, fname=Fun, arity=Arity} || {Fun, Arity} <- Exports,
+                                                                    Fun /= module_info]
     end;
-expand_delegate({Name, Funs}) when is_atom(Name),
-                                   is_list(Funs) ->
-    [{Name, Fun, Arity} || {Fun, Arity} <- Funs].
+expand_mixin(Line, {Name, Funs}) when is_atom(Name),
+                                      is_list(Funs) ->
+    [#mixin{line=Line, mod=Name, fname=Fun, arity=Arity} || {Fun, Arity} <- Funs].
 
-insure_no_dupes([]) ->
+no_dupes([]) ->
     ok;
-insure_no_dupes([H|T]) ->
-    insure_no_dupes(H, T),
-    insure_no_dupes(T).
+no_dupes([H|T]) ->
+    no_dupes(H, T),
+    no_dupes(T).
 
-insure_no_dupes(_, []) ->
+no_dupes(_, []) ->
     ok;
-insure_no_dupes([], _) ->
+no_dupes([], _) ->
     ok;
-insure_no_dupes([{Mod, Fun, Arity}|T], Rest) ->
+no_dupes(#mixin{mod=Mod, fname=Fun, arity=Arity, line=Line}, Rest) ->
     case find_dupe(Fun, Arity, Rest) of
         {ok, {Mod1, Fun, Arity}} ->
-            io:format("~s: Importing ~p/~p from ~p and ~p~n", [get_file_name(), Fun, Arity, Mod, Mod1]),
-            exit({error, duplicate_imports});
+            io:format("~s:~p Duplicate mixin detected importing ~p/~p from ~p and ~p~n",
+                      [get_file_name(), Line, Fun, Arity, Mod, Mod1]),
+            exit({error, duplicate_mixins});
         not_found ->
-            insure_no_dupes(T, Rest)
+            ok
     end.
 
 find_dupe(_Fun, _Arity, []) ->
     not_found;
-find_dupe(Fun, Arity, [{Name, Fun, Arity}|_]) ->
+find_dupe(Fun, Arity, [#mixin{mod=Name, fname=Fun, arity=Arity}|_]) ->
     {ok, {Name, Fun, Arity}};
 find_dupe(Fun, Arity, [H|T]) when is_list(H) ->
     case find_dupe(Fun, Arity, H) of
@@ -124,16 +134,16 @@ find_dupe(Fun, Arity, [_|T]) ->
 
 insert_stubs([], EOF, Forms) ->
     {EOF, Forms};
-insert_stubs(Delegates, EOF, Forms) ->
-    F = fun({Mod, Fun, Arity}, {CurrEOF, Acc}) ->
+insert_stubs(Mixins, EOF, Forms) ->
+    F = fun(#mixin{mod=Mod, fname=Fun, arity=Arity}, {CurrEOF, Acc}) ->
                 {CurrEOF + 1, [generate_stub(atom_to_list(Mod), atom_to_list(Fun), Arity, CurrEOF)|Acc]} end,
-    {EOF1, Stubs} = lists:foldr(F, {EOF, []}, lists:flatten(Delegates)),
+    {EOF1, Stubs} = lists:foldr(F, {EOF, []}, Mixins),
     {EOF1, Forms ++ lists:reverse(Stubs)}.
 
 
-generate_stub(Delegate, Name, Arity, CurrEOF) when Arity =< 5 ->
-    ArgList = "(" ++ proplists:get_value(Arity, ?PARAMS) ++ ")",
-    Code = Name ++ ArgList ++ "-> " ++ Delegate ++ ":" ++ Name ++ ArgList ++ ".",
+generate_stub(Mixin, Name, Arity, CurrEOF) when Arity =< 5 ->
+    ArgList = "(" ++ make_param_list(Arity) ++ ")",
+    Code = Name ++ ArgList ++ "-> " ++ Mixin ++ ":" ++ Name ++ ArgList ++ ".",
     {ok, Tokens, _} = erl_scan:string(Code),
     {ok, Form} = erl_parse:parse_form(Tokens),
     replace_stub_linenum(CurrEOF, Form).
@@ -150,3 +160,29 @@ replace_stub_linenum(CurrEOF, [{var, _, Var}|T], Accum) ->
 replace_stub_linenum(CurrEOF, [{call, _, {remote, _, {atom, _, Mod}, {atom, _, Fun}}, Args}], _Accum) ->
     [{call, CurrEOF, {remote, CurrEOF, {atom, CurrEOF, Mod}, {atom, CurrEOF, Fun}},
       replace_stub_linenum(CurrEOF, Args, [])}].
+
+%% Use single upper-case letters for params
+make_param_list(0) ->
+    "";
+make_param_list(Arity) when Arity =< 26 ->
+    make_param_list(Arity, []).
+
+make_param_list(1, Accum) ->
+    push_param(1, Accum);
+make_param_list(Count, Accum) ->
+    make_param_list(Count - 1, push_param(Count, Accum)).
+
+push_param(Pos, []) ->
+    [(64 + Pos)];
+push_param(Pos, Accum) ->
+    [(64 + Pos), 44|Accum].
+
+make_export_statement(Line, Mixins) ->
+    F = fun(Mixin) -> Mixin#mixin.line == Line end,
+    case lists:partition(F, Mixins) of
+        {[], Mixins} ->
+            {[], Mixins};
+        {ME, Mixins1} ->
+            Export = {attribute, Line, export, [{Name, Arity} || #mixin{fname=Name, arity=Arity} <- ME]},
+            {[Export], Mixins1}
+    end.
