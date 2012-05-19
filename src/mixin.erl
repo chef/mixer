@@ -60,20 +60,15 @@ insert_exports([#mixin{line=Line}|_]=Mixins, [{attribute, Line, mixin, _}|FT], A
 insert_exports(Mixins, [H|T], Accum) ->
     insert_exports(Mixins, T, Accum ++ [H]).
 
-%% insert_exports(_Mixins, [], _Filter, Accum) ->
-%%     lists:reverse(Accum).
-%% insert_exports(Mixins, [{attribute, LineNo, mixin, _}|T], false, Accum) ->
-%%     Attr = {attribute, LineNo, export, [{Name, Arity} || {_Mod, Name, Arity} <-
-%%                                                              lists:flatten(Mixins)]},
-%%     insert_exports(Mixins, T, true, [Attr|Accum]);
-%% insert_exports(Mixins, [{attribute, _, mixin, _}|T], true, Accum) ->
-%%     insert_exports(Mixins, T, true, Accum);
-%% insert_exports(Mixins, [H|T], Filter, Accum) ->
-%%     insert_exports(Mixins, T, Filter, [H|Accum]).
-
 strip_eof(Forms) ->
-    {eof, EOF} = hd(lists:reverse(Forms)),
-    {EOF, lists:delete({eof, EOF}, Forms)}.
+    strip_eof(Forms, []).
+
+strip_eof([], Accum) ->
+    lists:reverse(Accum);
+strip_eof([{eof, EOF}|T], Accum) ->
+    {EOF, lists:reverse(Accum) ++ T};
+strip_eof([H|T], Accum) ->
+    strip_eof(T, [H|Accum]).
 
 parse_and_expand_mixins([], Accum) ->
     lists:keysort(2, Accum);
