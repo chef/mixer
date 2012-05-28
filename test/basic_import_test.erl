@@ -26,3 +26,11 @@ multiple_test_() ->
        ?_assertMatch({doit, one}, multiple:doit(one)),
        ?_assert(multiple:canhas()),
        ?_assertMatch(cheezburger, multiple:canhas(cheezburger))]}].
+
+alias_test_() ->
+    [{<<"Function stubbed with alias">>,
+      [?_assert(lists:member({blah, 0}, ?EXPORTS(alias))),
+       ?_assert(lists:member({can_has, 0}, ?EXPORTS(alias)))]},
+     {<<"All stubbed functions work">>,
+      [?_assertMatch(doit, alias:blah()),
+       ?_assertMatch(true, alias:can_has())]}].

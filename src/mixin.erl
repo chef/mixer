@@ -27,6 +27,7 @@
 -record(mixin, {line,
                 mod,
                 fname,
+                alias,
                 arity}).
 
 parse_transform(Forms, _Options) ->
@@ -40,7 +41,6 @@ parse_transform(Forms, _Options) ->
             {EOF1, Forms2} = insert_stubs(Mixins, EOF, Forms1),
             finalize(Mixins, EOF1, Forms2)
     end.
-
 
 %% Internal functions
 set_file_name([{attribute, _, file, {FileName, _}}|_]) ->
@@ -73,7 +73,9 @@ strip_eof([H|T], Accum) ->
 parse_and_expand_mixins([], Accum) ->
     lists:keysort(2, Accum);
 parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}}}|T], Accum) ->
-    parse_and_expand_mixins(T, [#mixin{line=Line, mod=Name, fname=Fun, arity=Arity}|Accum]);
+    parse_and_expand_mixins(T, [#mixin{line=Line, mod=Name, alias=Fun, fname=Fun, arity=Arity}|Accum]);
+parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}, Alias}}|T], Accum) ->
+    parse_and_expand_mixins(T, [#mixin{line=Line, mod=Name, alias=Alias, fname=Fun, arity=Arity}|Accum]);
 parse_and_expand_mixins([{attribute, Line, mixin, Mixins0}|T], Accum) when is_list(Mixins0) ->
     Mixins = [expand_mixin(Line, Mixin) || Mixin <- Mixins0],
     parse_and_expand_mixins(T, lists:flatten([Accum, Mixins]));
@@ -86,12 +88,20 @@ expand_mixin(Line, Name) when is_atom(Name) ->
             io:format("~s:~p Unable to resolve imported module ~p~n", [get_file_name(), Line, Name]),
             exit({error, undef_module});
         Exports ->
-            [#mixin{line=Line, mod=Name, fname=Fun, arity=Arity} || {Fun, Arity} <- Exports,
-                                                                    Fun /= module_info]
+            [#mixin{line=Line, mod=Name, fname=Fun, alias=Fun, arity=Arity} || {Fun, Arity} <- Exports,
+                                                                               Fun /= module_info]
     end;
 expand_mixin(Line, {Name, Funs}) when is_atom(Name),
                                       is_list(Funs) ->
-    [#mixin{line=Line, mod=Name, fname=Fun, arity=Arity} || {Fun, Arity} <- Funs].
+    [begin
+         {Fun, Arity, Alias} = parse_mixin_ref(MixinRef),
+         #mixin{line=Line, mod=Name, fname=Fun, arity=Arity, alias=Alias}
+     end || MixinRef  <- Funs].
+
+parse_mixin_ref({{Fun, Arity}, Alias}) ->
+    {Fun, Arity, Alias};
+parse_mixin_ref({Fun, Arity}) ->
+    {Fun, Arity, Fun}.
 
 no_dupes([]) ->
     ok;
@@ -130,15 +140,15 @@ find_dupe(Fun, Arity, [_|T]) ->
 insert_stubs([], EOF, Forms) ->
     {EOF, Forms};
 insert_stubs(Mixins, EOF, Forms) ->
-    F = fun(#mixin{mod=Mod, fname=Fun, arity=Arity}, {CurrEOF, Acc}) ->
-                {CurrEOF + 1, [generate_stub(atom_to_list(Mod), atom_to_list(Fun), Arity, CurrEOF)|Acc]} end,
+    F = fun(#mixin{mod=Mod, fname=Fun, arity=Arity, alias=Alias}, {CurrEOF, Acc}) ->
+                {CurrEOF + 1, [generate_stub(atom_to_list(Mod), atom_to_list(Alias), atom_to_list(Fun), Arity, CurrEOF)|Acc]} end,
     {EOF1, Stubs} = lists:foldr(F, {EOF, []}, Mixins),
     {EOF1, Forms ++ lists:reverse(Stubs)}.
 
 
-generate_stub(Mixin, Name, Arity, CurrEOF) when Arity =< 5 ->
+generate_stub(Mixin, Alias, Name, Arity, CurrEOF) when Arity =< 5 ->
     ArgList = "(" ++ make_param_list(Arity) ++ ")",
-    Code = Name ++ ArgList ++ "-> " ++ Mixin ++ ":" ++ Name ++ ArgList ++ ".",
+    Code = Alias ++ ArgList ++ "-> " ++ Mixin ++ ":" ++ Name ++ ArgList ++ ".",
     {ok, Tokens, _} = erl_scan:string(Code),
     {ok, Form} = erl_parse:parse_form(Tokens),
     replace_stub_linenum(CurrEOF, Form).
@@ -178,6 +188,6 @@ make_export_statement(Line, Mixins) ->
         {[], Mixins} ->
             {[], Mixins};
         {ME, Mixins1} ->
-            Export = {attribute, Line, export, [{Name, Arity} || #mixin{fname=Name, arity=Arity} <- ME]},
+            Export = {attribute, Line, export, [{Alias, Arity} || #mixin{alias=Alias, arity=Arity} <- ME]},
             {[Export], Mixins1}
     end.
