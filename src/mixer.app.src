@@ -1,6 +1,6 @@
-{application, mixin,
+{application, mixer,
  [
-  {description, "Mixin public functions from external modules"},
+  {description, "Mix in public functions from external modules"},
   {vsn, "0.1"},
   {registered, []},
   {applications, [kernel,
