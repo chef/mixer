@@ -1,5 +1,5 @@
 -module(single).
 
--include("mixin.hrl").
+-include("mixer.hrl").
 
 -mixin([foo]).
