@@ -31,7 +31,7 @@
                 arity}).
 
 parse_transform(Forms, _Options) ->
-    set_file_name(Forms),
+    set_mod_info(Forms),
     {EOF, Forms1} = strip_eof(Forms),
     case parse_and_expand_mixins(Forms1, []) of
         [] ->
@@ -43,11 +43,16 @@ parse_transform(Forms, _Options) ->
     end.
 
 %% Internal functions
-set_file_name([{attribute, _, file, {FileName, _}}|_]) ->
-    erlang:put(wm_delegate_file, FileName).
+set_mod_info([{attribute, _, file, {FileName, _}}|T]) ->
+    erlang:put(mixer_delegate_file, FileName);
+set_mod_info([{attribute, _, module, Mod}|_]) ->
+    erlang:put(mixer_calling_mod, Mod).
 
 get_file_name() ->
-    erlang:get(wm_delegate_file).
+    erlang:get(mixer_delegate_file).
+
+get_calling_mod() ->
+    erlang:get(mixer_calling_mod).
 
 finalize(Mixins, NewEOF, Forms) ->
     insert_exports(Mixins, Forms, []) ++ [{eof, NewEOF}].
@@ -57,6 +62,9 @@ insert_exports([], Forms, Accum) ->
 insert_exports([#mixin{line=Line}|_]=Mixins, [{attribute, Line, mixin, _}|FT], Accum) ->
     {Exports, Mixins1} = make_export_statement(Line, Mixins),
     insert_exports(Mixins1, FT, Accum ++ Exports);
+insert_exports([#mixin{line=Line}|_]=Mixins, [], Accum) ->
+    {Exports, Mixins1} = make_export_statement(Line,  Mixins),
+    insert_exports(Mixins1, [], Accum ++ Exports);
 insert_exports(Mixins, [H|T], Accum) ->
     insert_exports(Mixins, T, Accum ++ [H]).
 
@@ -70,8 +78,10 @@ strip_eof([{eof, EOF}|T], Accum) ->
 strip_eof([H|T], Accum) ->
     strip_eof(T, [H|Accum]).
 
+parse_and_expand_mixins([], []) ->
+    [];
 parse_and_expand_mixins([], Accum) ->
-    lists:keysort(2, Accum);
+    group_mixins({none, 0}, lists:keysort(2, Accum), []);
 parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}}}|T], Accum) ->
     parse_and_expand_mixins(T, [#mixin{line=Line, mod=Name, alias=Fun, fname=Fun, arity=Arity}|Accum]);
 parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}, Alias}}|T], Accum) ->
@@ -79,8 +89,17 @@ parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}, Alias}}|T
 parse_and_expand_mixins([{attribute, Line, mixin, Mixins0}|T], Accum) when is_list(Mixins0) ->
     Mixins = [expand_mixin(Line, Mixin) || Mixin <- Mixins0],
     parse_and_expand_mixins(T, lists:flatten([Accum, Mixins]));
-parse_and_expand_mixins([_|T], Accum) ->
+parse_and_expand_mixins([F|T], Accum) ->
     parse_and_expand_mixins(T, Accum).
+
+group_mixins(_, [], Accum) ->
+    lists:keysort(2, Accum);
+group_mixins({CMod, CLine}, [#mixin{mod=CMod, line=CLine}=H|T], Accum) ->
+    group_mixins({CMod, CLine}, T, [H|Accum]);
+group_mixins({CMod, CLine}, [#mixin{mod=CMod, line=Line}=H|T], Accum) ->
+    group_mixins({CMod, CLine}, T, [H#mixin{line=CLine}|Accum]);
+group_mixins({CMod, _}, [#mixin{mod=Mod, line=Line}=H|T], Accum) ->
+    group_mixins({Mod, Line}, T, [H|Accum]).
 
 expand_mixin(Line, Name) when is_atom(Name) ->
     case catch Name:module_info(exports) of
