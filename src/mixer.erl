@@ -43,7 +43,7 @@ parse_transform(Forms, _Options) ->
     end.
 
 %% Internal functions
-set_mod_info([{attribute, _, file, {FileName, _}}|T]) ->
+set_mod_info([{attribute, _, file, {FileName, _}}|_]) ->
     erlang:put(mixer_delegate_file, FileName);
 set_mod_info([{attribute, _, module, Mod}|_]) ->
     erlang:put(mixer_calling_mod, Mod).
@@ -51,8 +51,8 @@ set_mod_info([{attribute, _, module, Mod}|_]) ->
 get_file_name() ->
     erlang:get(mixer_delegate_file).
 
-get_calling_mod() ->
-    erlang:get(mixer_calling_mod).
+%% get_calling_mod() ->
+%%     erlang:get(mixer_calling_mod).
 
 finalize(Mixins, NewEOF, Forms) ->
     insert_exports(Mixins, Forms, []) ++ [{eof, NewEOF}].
@@ -89,16 +89,16 @@ parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}, Alias}}|T
 parse_and_expand_mixins([{attribute, Line, mixin, Mixins0}|T], Accum) when is_list(Mixins0) ->
     Mixins = [expand_mixin(Line, Mixin) || Mixin <- Mixins0],
     parse_and_expand_mixins(T, lists:flatten([Accum, Mixins]));
-parse_and_expand_mixins([F|T], Accum) ->
+parse_and_expand_mixins([_|T], Accum) ->
     parse_and_expand_mixins(T, Accum).
 
 group_mixins(_, [], Accum) ->
     lists:keysort(2, Accum);
 group_mixins({CMod, CLine}, [#mixin{mod=CMod, line=CLine}=H|T], Accum) ->
     group_mixins({CMod, CLine}, T, [H|Accum]);
-group_mixins({CMod, CLine}, [#mixin{mod=CMod, line=Line}=H|T], Accum) ->
+group_mixins({CMod, CLine}, [#mixin{mod=CMod}=H|T], Accum) ->
     group_mixins({CMod, CLine}, T, [H#mixin{line=CLine}|Accum]);
-group_mixins({CMod, _}, [#mixin{mod=Mod, line=Line}=H|T], Accum) ->
+group_mixins({_CMod, _}, [#mixin{mod=Mod, line=Line}=H|T], Accum) ->
     group_mixins({Mod, Line}, T, [H|Accum]).
 
 expand_mixin(Line, Name) when is_atom(Name) ->
