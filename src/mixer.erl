@@ -130,8 +130,6 @@ no_dupes([H|T]) ->
 
 no_dupes(_, []) ->
     ok;
-no_dupes([], _) ->
-    ok;
 no_dupes(#mixin{mod=Mod, fname=Fun, arity=Arity, line=Line}, Rest) ->
     case find_dupe(Fun, Arity, Rest) of
         {ok, {Mod1, Fun, Arity}} ->
@@ -146,13 +144,13 @@ find_dupe(_Fun, _Arity, []) ->
     not_found;
 find_dupe(Fun, Arity, [#mixin{mod=Name, fname=Fun, arity=Arity}|_]) ->
     {ok, {Name, Fun, Arity}};
-find_dupe(Fun, Arity, [H|T]) when is_list(H) ->
-    case find_dupe(Fun, Arity, H) of
-        not_found ->
-            find_dupe(Fun, Arity, T);
-        Dupe ->
-            Dupe
-    end;
+%% find_dupe(Fun, Arity, [H|T]) when is_list(H) ->
+%%     case find_dupe(Fun, Arity, H) of
+%%         not_found ->
+%%             find_dupe(Fun, Arity, T);
+%%         Dupe ->
+%%             Dupe
+%%     end;
 find_dupe(Fun, Arity, [_|T]) ->
     find_dupe(Fun, Arity, T).
 
