@@ -30,6 +30,7 @@
                 alias,
                 arity}).
 
+-spec parse_transform([term()], [term()]) -> [term()].
 parse_transform(Forms, _Options) ->
     set_mod_info(Forms),
     {EOF, Forms1} = strip_eof(Forms),
@@ -144,18 +145,9 @@ find_dupe(_Fun, _Arity, []) ->
     not_found;
 find_dupe(Fun, Arity, [#mixin{mod=Name, fname=Fun, arity=Arity}|_]) ->
     {ok, {Name, Fun, Arity}};
-%% find_dupe(Fun, Arity, [H|T]) when is_list(H) ->
-%%     case find_dupe(Fun, Arity, H) of
-%%         not_found ->
-%%             find_dupe(Fun, Arity, T);
-%%         Dupe ->
-%%             Dupe
-%%     end;
 find_dupe(Fun, Arity, [_|T]) ->
     find_dupe(Fun, Arity, T).
 
-insert_stubs([], EOF, Forms) ->
-    {EOF, Forms};
 insert_stubs(Mixins, EOF, Forms) ->
     F = fun(#mixin{mod=Mod, fname=Fun, arity=Arity, alias=Alias}, {CurrEOF, Acc}) ->
                 {CurrEOF + 1, [generate_stub(atom_to_list(Mod), atom_to_list(Alias), atom_to_list(Fun), Arity, CurrEOF)|Acc]} end,
