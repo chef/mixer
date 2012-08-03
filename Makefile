@@ -1,4 +1,4 @@
-all: compile eunit
+all: compile eunit dialyzer
 
 clean:
 	@./rebar clean
@@ -8,3 +8,6 @@ compile:
 
 eunit:
 	@./rebar eunit
+
+dialyzer:
+	@dialyzer --src src
