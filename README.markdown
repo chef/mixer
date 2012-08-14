@@ -16,19 +16,19 @@
 Module `bar.erl` which 'mixes in' `foo`:
 
     -module(bar).
-    -include_lib("mixin/include/mixer.hrl").
+    -include_lib("mixer/include/mixer.hrl").
     -mixin([foo]).
 
 or only specific functions from `foo`:
 
     -module(bar).
-    -include_lib("mixin/include/mixer.hrl").
+    -include_lib("mixer/include/mixer.hrl").
     -mixin([{foo, [doit/0, doit/2]}]).
 
 Another version of `bar.erl` which mixes in all functions from `foo` and select functions from `baz`:
 
     -module(bar).
-    -include_lib("mixin/include/mixer.hrl").
+    -include_lib("mixer/include/mixer.hrl").
     -mixin([foo, {baz, [doit/0, doit/1]}]).
 
 One more version of `bar.erl` which mixes in `foo:doit/0` and renames it to `do_it_now/0`:
