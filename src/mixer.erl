@@ -104,7 +104,7 @@ expand_mixin(Line, Name) when is_atom(Name) ->
     case catch Name:module_info(exports) of
         {'EXIT', _} ->
             io:format("~s:~p Unable to resolve imported module ~p~n", [get_file_name(), Line, Name]),
-            exit({error, undef_module});
+            exit({error, undef_mixin_module});
         Exports ->
             [#mixin{line=Line, mod=Name, fname=Fun, alias=Fun, arity=Arity} || {Fun, Arity} <- Exports,
                                                                                Fun /= module_info]
@@ -112,8 +112,13 @@ expand_mixin(Line, Name) when is_atom(Name) ->
 expand_mixin(Line, {Name, Funs}) when is_atom(Name),
                                       is_list(Funs) ->
     [begin
-         {Fun, Arity, Alias} = parse_mixin_ref(MixinRef),
-         #mixin{line=Line, mod=Name, fname=Fun, arity=Arity, alias=Alias}
+         case code:which(Name) of
+             non_existing ->
+                 exit({error, undef_mixin_module});
+             _ ->
+                 {Fun, Arity, Alias} = parse_mixin_ref(MixinRef),
+                 #mixin{line=Line, mod=Name, fname=Fun, arity=Arity, alias=Alias}
+         end
      end || MixinRef  <- Funs].
 
 parse_mixin_ref({{Fun, Arity}, Alias}) ->

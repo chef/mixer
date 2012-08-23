@@ -1,0 +1,5 @@
+-module(missing).
+
+-include("mixer.hrl").
+
+-mixin([{wtf, [foo/0]}]).
