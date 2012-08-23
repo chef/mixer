@@ -1,0 +1,6 @@
+-module(conflicts).
+
+-include("mixer.hrl").
+
+-mixin([{foo, [do_it/1]},
+	{bar, [do_it/1]}]).

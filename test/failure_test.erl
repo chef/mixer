@@ -18,12 +18,20 @@ duplicate_test_() ->
               F = fun(Name0) ->
                           Name = Name0 ++ ".erl",
                           Error = compile_bad_test_file(Name0),
-                          ?debugFmt("Error ~p~n", [Error]),
                           ?assertMatch({error,[{Name,
                                                 [{none,compile,
                                                   {parse_transform,mixer,{error,undef_mixin_module}}}]}],
                                         []}, Error) end,
               [F(Module) || Module <- ["missing", "missing_all"]] end}].
+
+conflicting_mixins_test_() ->
+    [{<<"Conflicting mixins detected">>,
+      fun()->
+              Error = compile_bad_test_file("conflicts"),
+              ?assertMatch({error,[{"conflicts.erl",
+                                    [{none,compile,
+                                      {parse_transform,mixer,{error,duplicate_mixins}}}]}],
+                            []}, Error) end}].
 
 %% Internal functions
 compile_bad_test_file(Module) ->

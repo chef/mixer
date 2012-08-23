@@ -81,10 +81,6 @@ parse_and_expand_mixins([], []) ->
     [];
 parse_and_expand_mixins([], Accum) ->
     group_mixins({none, 0}, lists:keysort(2, Accum), []);
-parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}}}|T], Accum) ->
-    parse_and_expand_mixins(T, [#mixin{line=Line, mod=Name, alias=Fun, fname=Fun, arity=Arity}|Accum]);
-parse_and_expand_mixins([{attribute, Line, mixin, {Name, {Fun, Arity}, Alias}}|T], Accum) ->
-    parse_and_expand_mixins(T, [#mixin{line=Line, mod=Name, alias=Alias, fname=Fun, arity=Arity}|Accum]);
 parse_and_expand_mixins([{attribute, Line, mixin, Mixins0}|T], Accum) when is_list(Mixins0) ->
     Mixins = [expand_mixin(Line, Mixin) || Mixin <- Mixins0],
     parse_and_expand_mixins(T, lists:flatten([Accum, Mixins]));
