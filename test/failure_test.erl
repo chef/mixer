@@ -12,17 +12,7 @@ duplicate_test_() ->
               ?assertMatch({error,[{"duplicates.erl",
                                     [{none,compile,
                                       {parse_transform,mixer,{error,duplicate_mixins}}}]}],
-                            []}, Error) end},
-     {<<"Missing mixin detected">>,
-      fun() ->
-              F = fun(Name0) ->
-                          Name = Name0 ++ ".erl",
-                          Error = compile_bad_test_file(Name0),
-                          ?assertMatch({error,[{Name,
-                                                [{none,compile,
-                                                  {parse_transform,mixer,{error,undef_mixin_module}}}]}],
-                                        []}, Error) end,
-              [F(Module) || Module <- ["missing", "missing_all"]] end}].
+                            []}, Error) end}].
 
 conflicting_mixins_test_() ->
     [{<<"Conflicting mixins detected">>,
