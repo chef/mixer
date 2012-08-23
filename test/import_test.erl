@@ -1,10 +1,8 @@
--module(basic_import_test).
+-module(import_test).
 
 -include_lib("eunit/include/eunit.hrl").
 
 -define(EXPORTS(Mod), Mod:module_info(exports)).
-
-
 
 single_test_() ->
     [{<<"All functions on 'single' stubbed properly">>,
@@ -34,3 +32,13 @@ alias_test_() ->
      {<<"All stubbed functions work">>,
       [?_assertMatch(doit, alias:blah()),
        ?_assertMatch(true, alias:can_has())]}].
+
+duplicate_test_() ->
+    [{<<"Duplicate mixins detected">>,
+      fun() ->
+              {ok, _} = file:copy("../test/duplicates.erl.bad", "./duplicates.erl"),
+              Error = compile:file("./duplicates.erl", [{i, "../include"}, return_errors]),
+              ?assertMatch({error,[{"duplicates.erl",
+                                    [{none,compile,
+                                      {parse_transform,mixer,{error,duplicate_mixins}}}]}],
+                            []}, Error) end}].

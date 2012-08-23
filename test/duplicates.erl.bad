@@ -1,0 +1,6 @@
+-module(duplicates).
+
+-include("mixer.hrl").
+
+-mixin([{foo, [doit/0]}, bar]).
+-mixin([bar]).
