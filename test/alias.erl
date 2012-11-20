@@ -3,4 +3,4 @@
 -include("mixer.hrl").
 
 -mixin([{foo, [{doit/0, blah}]}]).
--mixin({bar, canhas/0, can_has}).
+-mixin([{bar, [{canhas/0, can_has}]}]).
