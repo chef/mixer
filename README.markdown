@@ -35,7 +35,7 @@ One more version of `bar.erl` which mixes in `foo:doit/0` and renames it to `do_
 
     -module(bar).
     -include_lib("mixer/include/mixer.hrl").
-    -mixin([{foo, doit/0, do_it_now}]).
+    -mixin([{foo, [{doit/0, do_it_now}]}]).
 
 The original motivation for this parse transform was to permit reuse of functions implementing common
 logic for tasks such as signature verification and authorization across multiple webmachine resources.
