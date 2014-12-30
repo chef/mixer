@@ -19,6 +19,12 @@ Module `bar.erl` which 'mixes in' `foo`:
     -include_lib("mixer/include/mixer.hrl").
     -mixin([foo]).
 
+or all except specific functions from `foo`:
+
+    -module(bar).
+    -include_lib("mixer/include/mixer.hrl").
+    -mixin([{foo, except, [doit/0, doit/2]}]).
+
 or only specific functions from `foo`:
 
     -module(bar).

@@ -105,6 +105,16 @@ expand_mixin(Line, Name) when is_atom(Name) ->
             [#mixin{line=Line, mod=Name, fname=Fun, alias=Fun, arity=Arity} || {Fun, Arity} <- Exports,
                                                                                Fun /= module_info]
     end;
+expand_mixin(Line, {Name, except, Funs}) when is_atom(Name),
+                                              is_list(Funs) ->
+    case catch Name:module_info(exports) of
+        {'EXIT', _} ->
+            io:format("~s:~p Unable to resolve imported module ~p~n", [get_file_name(), Line, Name]),
+            exit({error, undef_mixin_module});
+        Exports ->
+            [#mixin{line=Line, mod=Name, fname=Fun, alias=Fun, arity=Arity} || {Fun, Arity} <- Exports,
+                                                                               Fun /= module_info andalso not lists:member({Fun, Arity}, Funs)]
+    end;
 expand_mixin(Line, {Name, Funs}) when is_atom(Name),
                                       is_list(Funs) ->
     [begin

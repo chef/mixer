@@ -17,11 +17,14 @@ single_test_() ->
 multiple_test_() ->
     [{<<"All functions stubbed">>,
       [?_assert(lists:member({doit, 0}, ?EXPORTS(multiple))),
+       ?_assert(lists:member({doit, 1}, ?EXPORTS(multiple))),
+       ?_assert(lists:member({doit, 2}, ?EXPORTS(multiple))),
        ?_assert(lists:member({canhas, 0}, ?EXPORTS(multiple))),
        ?_assert(lists:member({canhas, 1}, ?EXPORTS(multiple)))]},
      {<<"All stubbed functions work">>,
       [?_assertMatch(doit, multiple:doit()),
        ?_assertMatch({doit, one}, multiple:doit(one)),
+       ?_assertMatch([doit, one, two], multiple:doit(one, two)),
        ?_assert(multiple:canhas()),
        ?_assertMatch(cheezburger, multiple:canhas(cheezburger))]}].
 
