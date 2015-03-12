@@ -159,7 +159,7 @@ insert_stubs(Mixins, EOF, Forms) ->
     {EOF1, Forms ++ lists:reverse(Stubs)}.
 
 
-generate_stub(Mixin, Alias, Name, Arity, CurrEOF) when Arity =< 5 ->
+generate_stub(Mixin, Alias, Name, Arity, CurrEOF) when Arity =< 26 ->
     ArgList = "(" ++ make_param_list(Arity) ++ ")",
     Code = Alias ++ ArgList ++ "-> " ++ Mixin ++ ":" ++ Name ++ ArgList ++ ".",
     {ok, Tokens, _} = erl_scan:string(Code),
