@@ -22,7 +22,7 @@
 
 -export([parse_transform/2]).
 
--define(arity_limit, 26).
+-define(ARITY_LIMIT, 26).
 
 -record(mixin, {line,
                 mod,
@@ -161,7 +161,7 @@ insert_stubs(Mixins, EOF, Forms) ->
     {EOF1, Forms ++ lists:reverse(Stubs)}.
 
 
-generate_stub(Mixin, Alias, Name, Arity, CurrEOF) when Arity =< ?arity_limit ->
+generate_stub(Mixin, Alias, Name, Arity, CurrEOF) when Arity =< ?ARITY_LIMIT ->
     ArgList = "(" ++ make_param_list(Arity) ++ ")",
     Code = Alias ++ ArgList ++ "-> " ++ Mixin ++ ":" ++ Name ++ ArgList ++ ".",
     {ok, Tokens, _} = erl_scan:string(Code),
@@ -184,7 +184,7 @@ replace_stub_linenum(CurrEOF, [{call, _, {remote, _, {atom, _, Mod}, {atom, _, F
 %% Use single upper-case letters for params
 make_param_list(0) ->
     "";
-make_param_list(Arity) when Arity =< ?arity_limit ->
+make_param_list(Arity) when Arity =< ?ARITY_LIMIT ->
     make_param_list(Arity, []).
 
 make_param_list(1, Accum) ->
