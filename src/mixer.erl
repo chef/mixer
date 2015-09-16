@@ -22,7 +22,7 @@
 
 -export([parse_transform/2]).
 
--define(arity_limit, 26).
+-define(ARITY_LIMIT, 26).
 
 -record(mixin, {line,
                 mod,
@@ -83,7 +83,8 @@ parse_and_expand_mixins([], []) ->
     [];
 parse_and_expand_mixins([], Accum) ->
     group_mixins({none, 0}, lists:keysort(2, Accum), []);
-parse_and_expand_mixins([{attribute, Line, mixin, Mixins0}|T], Accum) when is_list(Mixins0) ->
+parse_and_expand_mixins([{attribute, Line, mixin, Mixins0}|T], Accum)
+  when is_list(Mixins0) ->
     Mixins = [expand_mixin(Line, Mixin) || Mixin <- Mixins0],
     parse_and_expand_mixins(T, lists:flatten([Accum, Mixins]));
 parse_and_expand_mixins([_|T], Accum) ->
@@ -101,21 +102,26 @@ group_mixins({_CMod, _}, [#mixin{mod=Mod, line=Line}=H|T], Accum) ->
 expand_mixin(Line, Name) when is_atom(Name) ->
     case catch Name:module_info(exports) of
         {'EXIT', _} ->
-            io:format("~s:~p Unable to resolve imported module ~p~n", [get_file_name(), Line, Name]),
+            io:format(
+                "~s:~p Unable to resolve imported module ~p~n",
+                [get_file_name(), Line, Name]),
             exit({error, undef_mixin_module});
         Exports ->
-            [#mixin{line=Line, mod=Name, fname=Fun, alias=Fun, arity=Arity} || {Fun, Arity} <- Exports,
-                                                                               Fun /= module_info]
+            [#mixin{line=Line, mod=Name, fname=Fun, alias=Fun, arity=Arity}
+             || {Fun, Arity} <- Exports, Fun /= module_info]
     end;
 expand_mixin(Line, {Name, except, Funs}) when is_atom(Name),
                                               is_list(Funs) ->
     case catch Name:module_info(exports) of
         {'EXIT', _} ->
-            io:format("~s:~p Unable to resolve imported module ~p~n", [get_file_name(), Line, Name]),
+            io:format(
+                "~s:~p Unable to resolve imported module ~p~n",
+                [get_file_name(), Line, Name]),
             exit({error, undef_mixin_module});
         Exports ->
-            [#mixin{line=Line, mod=Name, fname=Fun, alias=Fun, arity=Arity} || {Fun, Arity} <- Exports,
-                                                                               Fun /= module_info andalso not lists:member({Fun, Arity}, Funs)]
+            [#mixin{line=Line, mod=Name, fname=Fun, alias=Fun, arity=Arity}
+             || {Fun, Arity} <- Exports,
+                Fun /= module_info andalso not lists:member({Fun, Arity}, Funs)]
     end;
 expand_mixin(Line, {Name, Funs}) when is_atom(Name),
                                       is_list(Funs) ->
@@ -140,8 +146,10 @@ no_dupes(_, []) ->
 no_dupes(#mixin{mod=Mod, fname=Fun, arity=Arity, line=Line}, Rest) ->
     case find_dupe(Fun, Arity, Rest) of
         {ok, {Mod1, Fun, Arity}} ->
-            io:format("~s:~p Duplicate mixin detected importing ~p/~p from ~p and ~p~n",
-                      [get_file_name(), Line, Fun, Arity, Mod, Mod1]),
+            io:format(
+                "~s:~p Duplicate mixin detected "
+                "importing ~p/~p from ~p and ~p~n",
+                [get_file_name(), Line, Fun, Arity, Mod, Mod1]),
             exit({error, duplicate_mixins});
         not_found ->
             ok
@@ -155,36 +163,53 @@ find_dupe(Fun, Arity, [_|T]) ->
     find_dupe(Fun, Arity, T).
 
 insert_stubs(Mixins, EOF, Forms) ->
-    F = fun(#mixin{mod=Mod, fname=Fun, arity=Arity, alias=Alias}, {CurrEOF, Acc}) ->
-                {CurrEOF + 1, [generate_stub(atom_to_list(Mod), atom_to_list(Alias), atom_to_list(Fun), Arity, CurrEOF)|Acc]} end,
+    F =
+        fun(#mixin{} = Mixin, {CurrEOF, Acc}) ->
+            #mixin{mod=Mod, fname=Fun, arity=Arity, alias=Alias} = Mixin,
+            {CurrEOF + 1,
+             [  generate_stub(
+                    atom_to_list(Mod), atom_to_list(Alias), atom_to_list(Fun),
+                    Arity, CurrEOF) |Acc]
+            }
+        end,
     {EOF1, Stubs} = lists:foldr(F, {EOF, []}, Mixins),
-    {EOF1, Forms ++ lists:reverse(Stubs)}.
+    {EOF1, Forms ++ lists:reverse(lists:flatten(Stubs))}.
 
+generate_stub(Mixin, Alias, Name, Arity, CurrEOF) when Arity =< ?ARITY_LIMIT ->
+    AnyList = lists:duplicate(Arity, "any()"),
+    ArgTypeList = string:join(AnyList, ", "),
+    SpecCode = "-spec " ++ Alias ++ "(" ++ ArgTypeList ++ ") -> any().",
+    {ok, SpecTokens, _} = erl_scan:string(SpecCode),
+    {ok, SpecForm} = erl_parse:parse_form(SpecTokens),
 
-generate_stub(Mixin, Alias, Name, Arity, CurrEOF) when Arity =< ?arity_limit ->
     ArgList = "(" ++ make_param_list(Arity) ++ ")",
     Code = Alias ++ ArgList ++ "-> " ++ Mixin ++ ":" ++ Name ++ ArgList ++ ".",
     {ok, Tokens, _} = erl_scan:string(Code),
     {ok, Form} = erl_parse:parse_form(Tokens),
-    replace_stub_linenum(CurrEOF, Form).
+    FunForm = replace_stub_linenum(CurrEOF, Form),
+    [FunForm, SpecForm].
 
 replace_stub_linenum(CurrEOF, {function, _, Name, Arity, Body}) ->
     {function, CurrEOF, Name, Arity, replace_stub_linenum(CurrEOF, Body, [])}.
 
 replace_stub_linenum(CurrEOF, [{clause, _, Vars, [], Call}], _) ->
-    [{clause, CurrEOF, replace_stub_linenum(CurrEOF, Vars, []), [], replace_stub_linenum(CurrEOF, Call, [])}];
+    [{clause, CurrEOF, replace_stub_linenum(CurrEOF, Vars, []), [],
+     replace_stub_linenum(CurrEOF, Call, [])}];
 replace_stub_linenum(_CurrEOF, [], Accum) ->
     lists:reverse(Accum);
 replace_stub_linenum(CurrEOF, [{var, _, Var}|T], Accum) ->
     replace_stub_linenum(CurrEOF, T, [{var, CurrEOF, Var}|Accum]);
-replace_stub_linenum(CurrEOF, [{call, _, {remote, _, {atom, _, Mod}, {atom, _, Fun}}, Args}], _Accum) ->
-    [{call, CurrEOF, {remote, CurrEOF, {atom, CurrEOF, Mod}, {atom, CurrEOF, Fun}},
+replace_stub_linenum(
+    CurrEOF, [{call, _, {remote, _, {atom, _, Mod}, {atom, _, Fun}}, Args}],
+    _Accum) ->
+    [{call, CurrEOF,
+      {remote, CurrEOF, {atom, CurrEOF, Mod}, {atom, CurrEOF, Fun}},
       replace_stub_linenum(CurrEOF, Args, [])}].
 
 %% Use single upper-case letters for params
 make_param_list(0) ->
     "";
-make_param_list(Arity) when Arity =< ?arity_limit ->
+make_param_list(Arity) when Arity =< ?ARITY_LIMIT ->
     make_param_list(Arity, []).
 
 make_param_list(1, Accum) ->
@@ -203,6 +228,9 @@ make_export_statement(Line, Mixins) ->
         {[], Mixins} ->
             {[], Mixins};
         {ME, Mixins1} ->
-            Export = {attribute, Line, export, [{Alias, Arity} || #mixin{alias=Alias, arity=Arity} <- ME]},
+            Exports =
+                [{Alias, Arity} || #mixin{alias=Alias, arity=Arity} <- ME],
+            Export =
+                {attribute, Line, export, Exports},
             {[Export], Mixins1}
     end.
