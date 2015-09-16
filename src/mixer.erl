@@ -173,15 +173,21 @@ insert_stubs(Mixins, EOF, Forms) ->
             }
         end,
     {EOF1, Stubs} = lists:foldr(F, {EOF, []}, Mixins),
-    {EOF1, Forms ++ lists:reverse(Stubs)}.
-
+    {EOF1, Forms ++ lists:reverse(lists:flatten(Stubs))}.
 
 generate_stub(Mixin, Alias, Name, Arity, CurrEOF) when Arity =< ?ARITY_LIMIT ->
+    AnyList = lists:duplicate(Arity, "any()"),
+    ArgTypeList = string:join(AnyList, ", "),
+    SpecCode = "-spec " ++ Alias ++ "(" ++ ArgTypeList ++ ") -> any().",
+    {ok, SpecTokens, _} = erl_scan:string(SpecCode),
+    {ok, SpecForm} = erl_parse:parse_form(SpecTokens),
+
     ArgList = "(" ++ make_param_list(Arity) ++ ")",
     Code = Alias ++ ArgList ++ "-> " ++ Mixin ++ ":" ++ Name ++ ArgList ++ ".",
     {ok, Tokens, _} = erl_scan:string(Code),
     {ok, Form} = erl_parse:parse_form(Tokens),
-    replace_stub_linenum(CurrEOF, Form).
+    FunForm = replace_stub_linenum(CurrEOF, Form),
+    [FunForm, SpecForm].
 
 replace_stub_linenum(CurrEOF, {function, _, Name, Arity, Body}) ->
     {function, CurrEOF, Name, Arity, replace_stub_linenum(CurrEOF, Body, [])}.
