@@ -21,7 +21,7 @@
 {application, mixer,
  [
   {description, "Mix in public functions from external modules"},
-  %{vsn, "0.1.1"},
+  {vsn, ""},
   {registered, []},
   {applications, [kernel,
                   stdlib]},
